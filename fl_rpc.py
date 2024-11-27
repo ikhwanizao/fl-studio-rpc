@@ -1,3 +1,4 @@
+import os
 import time
 import psutil
 import win32gui
@@ -6,7 +7,7 @@ import pypresence
 
 class FLStudioRPC:
     def __init__(self):
-        self.CLIENT_ID = "758937685922021377"
+        self.CLIENT_ID = os.environ.get("DISCORD_CLIENT_ID")
         self.rpc = None
         self.start_time = None
         self.last_window_title = None
