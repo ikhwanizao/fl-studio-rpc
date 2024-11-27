@@ -5,31 +5,54 @@ import psutil
 import win32gui
 import win32process
 import pypresence
-
-def get_client_id():
-    try:
-        if getattr(sys, 'frozen', False):
-            base_path = sys._MEIPASS
-        else:
-            base_path = os.path.dirname(os.path.abspath(__file__))
-            
-        with open(os.path.join(base_path, 'CLIENT_ID.txt'), 'r') as f:
-            return f.read().strip()
-    except Exception as e:
-        return os.environ.get("DISCORD_CLIENT_ID") 
+import pystray
+from PIL import Image
+import threading
 
 class FLStudioRPC:
     def __init__(self):
-        self.CLIENT_ID = get_client_id()
-        if not self.CLIENT_ID:
-            print("Error: No Discord Client ID found")
-            sys.exit(1)
-            
+        self.CLIENT_ID = self.get_client_id()
         self.rpc = None
         self.start_time = None
         self.last_window_title = None
         self.current_view = "composing"
+        self.running = True
+        self.icon = None
         
+    def get_client_id(self):
+        try:
+            if getattr(sys, 'frozen', False):
+                base_path = sys._MEIPASS
+            else:
+                base_path = os.path.dirname(os.path.abspath(__file__))
+            
+            with open(os.path.join(base_path, 'CLIENT_ID.txt'), 'r') as f:
+                return f.read().strip()
+        except Exception as e:
+            return os.environ.get("DISCORD_CLIENT_ID")
+
+    def create_icon(self):
+        icon = Image.new('RGB', (64, 64), color='black')
+        return icon
+
+    def setup_tray(self):
+        self.icon = pystray.Icon(
+            "FL Studio RPC",
+            self.create_icon(),
+            "FL Studio Discord RPC",
+            menu=pystray.Menu(
+                pystray.MenuItem("Exit", self.stop)
+            )
+        )
+        self.icon.run()
+
+    def stop(self, icon=None, item=None):
+        self.running = False
+        if self.icon:
+            self.icon.stop()
+        if self.rpc:
+            self.rpc.close()
+
     def connect(self):
         try:
             self.rpc = pypresence.Presence(self.CLIENT_ID)
@@ -106,7 +129,6 @@ class FLStudioRPC:
             parts = title.split(" - ")
             project_name = parts[0]
 
-        # Create state message based on current view
         state_messages = {
             "piano_roll": "Writing melodies",
             "mixer": "Mixing tracks",
@@ -151,20 +173,22 @@ class FLStudioRPC:
             except Exception as e:
                 print(f"Failed to update presence: {e}")
 
+    def update_presence_loop(self):
+        while self.running:
+            self.update_presence()
+            time.sleep(15)
+
     def run(self):
         if not self.connect():
             return
 
-        print("FL Studio Discord RPC running. Press Ctrl+C to exit.")
-        try:
-            while True:
-                self.update_presence()
-                time.sleep(15)
-        except KeyboardInterrupt:
-            print("\nShutting down...")
-        finally:
-            if self.rpc:
-                self.rpc.close()
+        print("FL Studio Discord RPC running. Right-click tray icon to exit.")
+        
+        presence_thread = threading.Thread(target=self.update_presence_loop)
+        presence_thread.daemon = True
+        presence_thread.start()
+        
+        self.setup_tray()
 
 if __name__ == "__main__":
     fl_rpc = FLStudioRPC()
