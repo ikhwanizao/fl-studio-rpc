@@ -39,11 +39,10 @@ class FLStudioRPC:
     
     def get_settings_path(self):
         """Get the path for settings file"""
-        if getattr(sys, 'frozen', False):
-            base_dir = os.path.dirname(sys.executable)
-        else:
-            base_dir = os.path.dirname(os.path.abspath(__file__))
-        return os.path.join(base_dir, 'settings.json')
+        app_data_dir = os.path.join(os.getenv('APPDATA'), 'FLStudioDiscordRPC')
+        if not os.path.exists(app_data_dir):
+            os.makedirs(app_data_dir)
+        return os.path.join(app_data_dir, 'settings.json')
     
     def load_settings(self):
         """Load settings from file or create with defaults"""
