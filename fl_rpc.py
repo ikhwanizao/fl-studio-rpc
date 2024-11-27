@@ -8,6 +8,8 @@ import pypresence
 import pystray
 from PIL import Image
 import threading
+import winreg
+import json
 
 class FLStudioRPC:
     def __init__(self):
@@ -18,6 +20,10 @@ class FLStudioRPC:
         self.current_view = "composing"
         self.running = True
         self.icon = None
+        self.settings = self.load_settings()
+        
+        if self.settings.get('start_with_windows', True):
+            self.add_to_startup()
         
     def get_client_id(self):
         try:
@@ -30,10 +36,96 @@ class FLStudioRPC:
                 return f.read().strip()
         except Exception as e:
             return os.environ.get("DISCORD_CLIENT_ID")
+    
+    def get_settings_path(self):
+        """Get the path for settings file"""
+        if getattr(sys, 'frozen', False):
+            base_dir = os.path.dirname(sys.executable)
+        else:
+            base_dir = os.path.dirname(os.path.abspath(__file__))
+        return os.path.join(base_dir, 'settings.json')
+    
+    def load_settings(self):
+        """Load settings from file or create with defaults"""
+        try:
+            with open(self.get_settings_path(), 'r') as f:
+                return json.load(f)
+        except (FileNotFoundError, json.JSONDecodeError):
+            # Default settings
+            default_settings = {
+                'start_with_windows': True
+            }
+            self.save_settings(default_settings)
+            return default_settings
+    
+    def save_settings(self, settings):
+        """Save settings to file"""
+        try:
+            with open(self.get_settings_path(), 'w') as f:
+                json.dump(settings, f)
+        except Exception as e:
+            print(f"Failed to save settings: {e}")
+    
+    def add_to_startup(self):
+        """Add program to Windows startup"""
+        try:
+            if getattr(sys, 'frozen', False):
+                exe_path = f'"{sys.executable}"'
+            else:
+                exe_path = f'"{sys.executable}" "{os.path.abspath(__file__)}"'
+
+            key = winreg.OpenKey(
+                winreg.HKEY_CURRENT_USER,
+                r"Software\Microsoft\Windows\CurrentVersion\Run",
+                0,
+                winreg.KEY_SET_VALUE | winreg.KEY_QUERY_VALUE
+            )
+            
+            winreg.SetValueEx(key, "FL Studio Discord RPC", 0, winreg.REG_SZ, exe_path)
+            winreg.CloseKey(key)
+        except Exception as e:
+            print(f"Failed to add to startup: {e}")
+        
+    def remove_from_startup(self):
+        """Remove program from Windows startup"""
+        try:
+            key = winreg.OpenKey(
+                winreg.HKEY_CURRENT_USER,
+                r"Software\Microsoft\Windows\CurrentVersion\Run",
+                0,
+                winreg.KEY_SET_VALUE | winreg.KEY_QUERY_VALUE
+            )
+            
+            winreg.DeleteValue(key, "FL Studio Discord RPC")
+            winreg.CloseKey(key)
+        except Exception as e:
+            print(f"Failed to remove from startup: {e}")
+    
+    def toggle_startup(self, icon, item):
+        """Toggle start with Windows setting"""
+        current_setting = self.settings.get('start_with_windows', True)
+        new_setting = not current_setting
+        
+        if new_setting:
+            self.add_to_startup()
+        else:
+            self.remove_from_startup()
+            
+        self.settings['start_with_windows'] = new_setting
+        self.save_settings(self.settings)
+        item.checked = new_setting
 
     def create_icon(self):
-        icon = Image.new('RGB', (64, 64), color='black')
-        return icon
+        try:
+            if getattr(sys, 'frozen', False):
+                base_path = sys._MEIPASS
+            else:
+                base_path = os.path.dirname(os.path.abspath(__file__))
+                
+            icon_path = os.path.join(base_path, 'icon.ico')
+            return Image.open(icon_path)
+        except Exception:
+            return Image.new('RGB', (64, 64), color='black')
 
     def setup_tray(self):
         self.icon = pystray.Icon(
@@ -41,6 +133,11 @@ class FLStudioRPC:
             self.create_icon(),
             "FL Studio Discord RPC",
             menu=pystray.Menu(
+                pystray.MenuItem(
+                    "Start with Windows",
+                    self.toggle_startup,
+                    checked=lambda item: self.settings.get('start_with_windows', True)
+                ),
                 pystray.MenuItem("Exit", self.stop)
             )
         )
