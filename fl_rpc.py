@@ -1,13 +1,30 @@
 import os
+import sys
 import time
 import psutil
 import win32gui
 import win32process
 import pypresence
 
+def get_client_id():
+    try:
+        if getattr(sys, 'frozen', False):
+            base_path = sys._MEIPASS
+        else:
+            base_path = os.path.dirname(os.path.abspath(__file__))
+            
+        with open(os.path.join(base_path, 'CLIENT_ID.txt'), 'r') as f:
+            return f.read().strip()
+    except Exception as e:
+        return os.environ.get("DISCORD_CLIENT_ID") 
+
 class FLStudioRPC:
     def __init__(self):
-        self.CLIENT_ID = os.environ.get("DISCORD_CLIENT_ID")
+        self.CLIENT_ID = get_client_id()
+        if not self.CLIENT_ID:
+            print("Error: No Discord Client ID found")
+            sys.exit(1)
+            
         self.rpc = None
         self.start_time = None
         self.last_window_title = None
