@@ -10,6 +10,7 @@ from PIL import Image
 import threading
 import winreg
 import json
+import ctypes
 
 class FLStudioRPC:
     def __init__(self):
@@ -133,6 +134,68 @@ class FLStudioRPC:
         except Exception:
             return Image.new('RGB', (64, 64), color='black')
 
+    def show_confirmation(self, message, title):
+        """Show Windows message box with Yes/No"""
+        return ctypes.windll.user32.MessageBoxW(None, message, title, 0x4) == 6 
+
+    def show_message(self, message, title):
+        """Show Windows message box"""
+        ctypes.windll.user32.MessageBoxW(None, message, title, 0x40)
+
+    def uninstall(self, icon=None, item=None):
+        """Completely remove application data and exit"""
+        if not self.show_confirmation(
+            "Are you sure you want to uninstall FL Studio Discord RPC?\nThis will remove all settings and data.",
+            "Confirm Uninstall"
+        ):
+            return
+
+        success = True
+        try:
+            # Remove from startup
+            try:
+                self.remove_from_startup()
+            except Exception as e:
+                print(f"Failed to remove from startup: {e}")
+                success = False
+
+            # Delete settings file
+            settings_path = self.get_settings_path()
+            try:
+                if os.path.exists(settings_path):
+                    os.remove(settings_path)
+            except Exception as e:
+                print(f"Failed to remove settings file: {e}")
+                success = False
+
+            # Remove app directory
+            try:
+                app_dir = os.path.dirname(settings_path)
+                if os.path.exists(app_dir):
+                    os.rmdir(app_dir)
+            except Exception as e:
+                print(f"Failed to remove app directory: {e}")
+                success = False
+
+            if success:
+                self.show_message(
+                    "FL Studio Discord RPC has been uninstalled successfully.",
+                    "Uninstall Complete"
+                )
+            else:
+                self.show_message(
+                    "Some errors occurred during uninstallation.\nCheck the console for details.",
+                    "Uninstall Warning"
+                )
+            self.stop()
+        except Exception as e:
+            print(f"Critical error during uninstallation: {e}")
+            self.show_message(
+                "Failed to uninstall. Please check the console for details.",
+                "Uninstall Error"
+            )
+            self.stop()
+
     def setup_tray(self):
         self.icon = pystray.Icon(
             "FL Studio RPC",
@@ -144,6 +207,7 @@ class FLStudioRPC:
                     self.toggle_startup,
                     checked=lambda item: self.settings.get('start_with_windows', True)
                 ),
+                pystray.MenuItem("Uninstall", self.uninstall),
                 pystray.MenuItem("Exit", self.stop)
             )
         )
