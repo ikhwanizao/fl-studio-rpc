@@ -42,7 +42,7 @@ If you encounter any issues, please:
 3. [Create an issue](../../issues) if you need help
 
 ## Legal
-By using this application, you agree to our [Terms of Service](TERMS.md).
+By using this application, you agree to our [Terms of Service](TERMS.md) and [Privacy Policy](PRIVACY.md).
 
 ## Credits
 Created by IZAO
