@@ -21,6 +21,7 @@ class FLStudioRPC:
         self.running = True
         self.icon = None
         self.settings = self.load_settings()
+        self.fl_studio_running = False
         
         if self.settings.get('start_with_windows', True):
             self.add_to_startup()
@@ -69,9 +70,14 @@ class FLStudioRPC:
         """Add program to Windows startup"""
         try:
             if getattr(sys, 'frozen', False):
-                exe_path = f'"{sys.executable}"'
+                # For compiled executable
+                exe_path = f'"{os.path.abspath(sys.executable)}"'
             else:
+                # For Python script
                 exe_path = f'"{sys.executable}" "{os.path.abspath(__file__)}"'
+
+            # Remove any double quotes that might cause issues
+            exe_path = exe_path.replace('""', '"')
 
             key = winreg.OpenKey(
                 winreg.HKEY_CURRENT_USER,
@@ -82,6 +88,7 @@ class FLStudioRPC:
             
             winreg.SetValueEx(key, "FL Studio Discord RPC", 0, winreg.REG_SZ, exe_path)
             winreg.CloseKey(key)
+            print(f"Added to startup with path: {exe_path}")
         except Exception as e:
             print(f"Failed to add to startup: {e}")
         
@@ -143,11 +150,24 @@ class FLStudioRPC:
         self.icon.run()
 
     def stop(self, icon=None, item=None):
-        self.running = False
-        if self.icon:
-            self.icon.stop()
-        if self.rpc:
-            self.rpc.close()
+        """Ensure clean exit"""
+        try:
+            self.running = False
+            if self.rpc:
+                try:
+                    self.rpc.close()
+                except:
+                    pass
+            if self.icon:
+                try:
+                    self.icon.stop()
+                except:
+                    pass
+            # Force exit to ensure cleanup
+            os._exit(0)
+        except Exception as e:
+            print(f"Error during shutdown: {e}")
+            os._exit(1)
 
     def connect(self):
         try:
@@ -247,17 +267,20 @@ class FLStudioRPC:
             if self.rpc:
                 self.rpc.clear()
             self.last_window_title = None
+            if self.fl_studio_running:
+                self.fl_studio_running = False
+                self.start_time = None
             return
         
-        # Check if view or title changed
+        if not self.fl_studio_running:
+            self.fl_studio_running = True
+            self.start_time = int(time.time())
+        
         if window_title == self.last_window_title and self.current_view == getattr(self, '_last_view', None):
             return
 
         state = self.parse_window_title(window_title)
         if state:
-            if not self.start_time:
-                self.start_time = int(time.time())
-            
             try:
                 self.rpc.update(
                     start=self.start_time,
