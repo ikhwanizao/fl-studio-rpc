@@ -1,4 +1,4 @@
-# Terms of Service for FL Studio Discord RPC
+# Terms of Service for FL Studio Rich Presence
 
 Last Updated: November 28, 2024
 
