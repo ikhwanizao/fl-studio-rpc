@@ -52,7 +52,6 @@ class FLStudioRPC:
             with open(self.get_settings_path(), 'r') as f:
                 return json.load(f)
         except (FileNotFoundError, json.JSONDecodeError):
-            # Default settings
             default_settings = {
                 'start_with_windows': True
             }
